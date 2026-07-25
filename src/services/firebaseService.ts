@@ -1,48 +1,41 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  updateDoc, 
-  query, 
-  where, 
-  arrayUnion,
-  addDoc
-} from 'firebase/firestore';
-import { SurvivorProfile, CaregiverProfile, EmergencyLog, SafetyStatus, PatientCondition, UserRole } from '../types';
+import { getFirestore } from 'firebase/firestore';
+import {
+  SurvivorProfile,
+  CaregiverProfile,
+  EmergencyLog,
+  SafetyStatus,
+  PatientCondition,
+  UserRole
+} from '../types';
 
-// Web app Firebase configuration
+// ---- Firebase Configuration -------------------------------------------------
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCKsKDCuMGYJl0ot5IX1zez3BQUacRSBaw",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "intelisupport-ca037.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "intelisupport-ca037",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "intelisupport-ca037.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "890491319395",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:890491319395:web:70fda73c47761a19b27456",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-GN3QFM1J1M"
+  apiKey:             import.meta.env.VITE_FIREBASE_API_KEY             || 'AIzaSyCKsKDCuMGYJl0ot5IX1zez3BQUacRSBaw',
+  authDomain:         import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         || 'intelisupport-ca037.firebaseapp.com',
+  projectId:          import.meta.env.VITE_FIREBASE_PROJECT_ID          || 'intelisupport-ca037',
+  storageBucket:      import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      || 'intelisupport-ca037.firebasestorage.app',
+  messagingSenderId:  import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '890491319395',
+  appId:              import.meta.env.VITE_FIREBASE_APP_ID              || '1:890491319395:web:70fda73c47761a19b27456',
+  measurementId:      import.meta.env.VITE_FIREBASE_MEASUREMENT_ID      || 'G-GN3QFM1J1M'
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db   = getFirestore(app);
 
-// ============================================================================
-// DYNAMIC RELATIONAL STATE DATABASE STORE
-// Handles Account Creation, Multi-Caregiver Linking, & Real-Time Sync
-// ============================================================================
+// ---- Seed Data (Local-Only Fallback) ----------------------------------------
 
 const MOCK_CAREGIVERS: CaregiverProfile[] = [
   {
@@ -79,11 +72,11 @@ const MOCK_SURVIVORS: SurvivorProfile[] = [
     id: 'pat-201',
     name: 'Alex Rivera',
     email: 'alex.r@example.com',
-    caregiverIds: ['cg-101', 'cg-102'], // Linked to 2 caregivers!
+    caregiverIds: ['cg-101', 'cg-102'],
     safetyStatus: 'SAFE',
     lastHelpRequested: {
       type: 'Breathing Grounding',
-      timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
+      timestamp: new Date(Date.now() - 15 * 60_000).toISOString(),
       title: '15 mins ago: Craving Grounding Script used'
     },
     preExistingConditions: ['asthma', 'opioid_use', 'ptsd_anxiety'],
@@ -95,17 +88,17 @@ const MOCK_SURVIVORS: SurvivorProfile[] = [
       stressLevel: 'low',
       lastSyncedAt: new Date().toISOString()
     },
-    createdAt: new Date(Date.now() - 86400000 * 30).toISOString()
+    createdAt: new Date(Date.now() - 86_400_000 * 30).toISOString()
   },
   {
     id: 'pat-202',
     name: 'Jordan Miller',
     email: 'jordan.m@example.com',
-    caregiverIds: ['cg-101', 'cg-103'], // Linked to 2 caregivers!
+    caregiverIds: ['cg-101', 'cg-103'],
     safetyStatus: 'ELEVATED_CRAVING',
     lastHelpRequested: {
       type: 'Craving Log',
-      timestamp: new Date(Date.now() - 45 * 60000).toISOString(),
+      timestamp: new Date(Date.now() - 45 * 60_000).toISOString(),
       title: '45 mins ago: Elevated Craving Logged'
     },
     preExistingConditions: ['cardiac', 'alcohol_use', 'allergies'],
@@ -117,7 +110,7 @@ const MOCK_SURVIVORS: SurvivorProfile[] = [
       stressLevel: 'critical',
       lastSyncedAt: new Date().toISOString()
     },
-    createdAt: new Date(Date.now() - 86400000 * 60).toISOString()
+    createdAt: new Date(Date.now() - 86_400_000 * 60).toISOString()
   }
 ];
 
@@ -126,7 +119,7 @@ const MOCK_LOGS: EmergencyLog[] = [
     id: 'log-1',
     patientId: 'pat-201',
     patientName: 'Alex Rivera',
-    timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
+    timestamp: new Date(Date.now() - 15 * 60_000).toISOString(),
     type: 'CRAVING_LOG',
     notes: 'Completed 4-7-8 haptic breathing exercise.',
     resolved: true
@@ -135,14 +128,16 @@ const MOCK_LOGS: EmergencyLog[] = [
     id: 'log-2',
     patientId: 'pat-202',
     patientName: 'Jordan Miller',
-    timestamp: new Date(Date.now() - 45 * 60000).toISOString(),
+    timestamp: new Date(Date.now() - 45 * 60_000).toISOString(),
     type: 'CRAVING_LOG',
     notes: 'Elevated heart rate (118 bpm) detected by Health Connect.',
     resolved: false
   }
 ];
 
-function notifyDatabaseUpdate() {
+// ---- Local Cache Helpers -----------------------------------------------------
+
+function notifyDatabaseUpdate(): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('intelisupport_db_update'));
   }
@@ -166,7 +161,7 @@ function getLocalCache<T>(key: string, defaultVal: T): T {
     return defaultVal;
   }
   try {
-    return JSON.parse(item);
+    return JSON.parse(item) as T;
   } catch {
     return defaultVal;
   }
@@ -178,9 +173,21 @@ function setLocalCache<T>(key: string, val: T): void {
   notifyDatabaseUpdate();
 }
 
-// ============================================================================
-// FIREBASE AUTHENTICATION & OAUTH METHODS
-// ============================================================================
+// ---- Mock ID Maps -----------------------------------------------------------
+
+const MOCK_UIDS: Record<UserRole, string> = {
+  survivor:         'pat-201',
+  caregiver:        'cg-101',
+  service_provider: 'sp-301'
+};
+
+const MOCK_NAMES: Record<UserRole, string> = {
+  survivor:         'Alex Rivera (Survivor)',
+  caregiver:        'Dr. Sarah Jenkins (Caregiver)',
+  service_provider: 'Captain Michael Vance (EMS Paramedic)'
+};
+
+// ---- Authentication ---------------------------------------------------------
 
 export async function registerUserWithEmail(
   email: string,
@@ -191,8 +198,9 @@ export async function registerUserWithEmail(
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(cred.user, { displayName });
-    return { uid: cred.user.uid, email: cred.user.email || email, displayName, role };
+    return { uid: cred.user.uid, email: cred.user.email ?? email, displayName, role };
   } catch {
+    // Offline / API-disabled fallback — persist new survivor to local cache
     const newUid = `${role.substring(0, 3)}-${Date.now()}`;
     if (role === 'survivor') {
       const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
@@ -204,11 +212,15 @@ export async function registerUserWithEmail(
         safetyStatus: 'SAFE',
         preExistingConditions: ['asthma', 'opioid_use'],
         substanceType: 'Opioids / Polysubstance Recovery',
-        vitalIndicators: { heartRate: 72, heartRateSpike: false, stressLevel: 'low', lastSyncedAt: new Date().toISOString() },
+        vitalIndicators: {
+          heartRate: 72,
+          heartRateSpike: false,
+          stressLevel: 'low',
+          lastSyncedAt: new Date().toISOString()
+        },
         createdAt: new Date().toISOString()
       };
-      survivors.unshift(newSurvivor);
-      setLocalCache('rp_survivors', survivors);
+      setLocalCache('rp_survivors', [newSurvivor, ...survivors]);
     }
     return { uid: newUid, email, displayName, role };
   }
@@ -222,14 +234,14 @@ export async function loginUserWithEmail(
   try {
     const cred = await signInWithEmailAndPassword(auth, email, pass);
     return {
-      uid: cred.user.uid,
-      email: cred.user.email || email,
-      displayName: cred.user.displayName || email.split('@')[0],
+      uid:         cred.user.uid,
+      email:       cred.user.email ?? email,
+      displayName: cred.user.displayName ?? email.split('@')[0],
       role
     };
   } catch {
     return {
-      uid: role === 'survivor' ? 'pat-201' : role === 'caregiver' ? 'cg-101' : 'sp-301',
+      uid:         MOCK_UIDS[role],
       email,
       displayName: `${email.split('@')[0]} (${role})`,
       role
@@ -237,38 +249,25 @@ export async function loginUserWithEmail(
   }
 }
 
-export async function signInWithGoogle(selectedRole: UserRole = 'caregiver'): Promise<{ 
-  uid: string; 
-  email: string; 
-  displayName: string;
-  role: UserRole;
-} | null> {
+export async function signInWithGoogle(
+  selectedRole: UserRole = 'caregiver'
+): Promise<{ uid: string; email: string; displayName: string; role: UserRole } | null> {
   try {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const result = await signInWithPopup(auth, provider);
     return {
-      uid: result.user.uid,
-      email: result.user.email || '',
-      displayName: result.user.displayName || 'InteliSupport User',
-      role: selectedRole
+      uid:         result.user.uid,
+      email:       result.user.email ?? '',
+      displayName: result.user.displayName ?? 'InteliSupport User',
+      role:        selectedRole
     };
   } catch {
-    const mockNames: Record<UserRole, string> = {
-      survivor: 'Alex Rivera (Survivor)',
-      caregiver: 'Dr. Sarah Jenkins (Caregiver)',
-      service_provider: 'Captain Michael Vance (EMS Paramedic)'
-    };
-    const mockUids: Record<UserRole, string> = {
-      survivor: 'pat-201',
-      caregiver: 'cg-101',
-      service_provider: 'sp-301'
-    };
     return {
-      uid: mockUids[selectedRole],
-      email: `${selectedRole}@example.com`,
-      displayName: mockNames[selectedRole],
-      role: selectedRole
+      uid:         MOCK_UIDS[selectedRole],
+      email:       `${selectedRole}@example.com`,
+      displayName: MOCK_NAMES[selectedRole],
+      role:        selectedRole
     };
   }
 }
@@ -277,95 +276,95 @@ export async function logoutUser(): Promise<void> {
   try {
     await signOut(auth);
   } catch {
-    // Graceful silent fallback
+    // Silent — user is already logged out locally
   }
 }
 
+// ---- Survivor Profile -------------------------------------------------------
+
 export async function getSurvivorProfile(patientId: string): Promise<SurvivorProfile | null> {
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  return survivors.find(s => s.id === patientId) || survivors[0] || null;
+  return survivors.find((s) => s.id === patientId) ?? survivors[0] ?? null;
 }
 
-export async function getAssignedPatientsForCaregiver(caregiverId: string): Promise<SurvivorProfile[]> {
-  const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  return survivors;
+export async function getAssignedPatientsForCaregiver(_caregiverId: string): Promise<SurvivorProfile[]> {
+  return getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
 }
 
 export async function getLinkedCaregiversForSurvivor(caregiverIds: string[]): Promise<CaregiverProfile[]> {
   const caregivers = getLocalCache<CaregiverProfile[]>('rp_caregivers', MOCK_CAREGIVERS);
-  return caregivers.filter(c => caregiverIds.includes(c.id));
+  return caregivers.filter((c) => caregiverIds.includes(c.id));
 }
 
-export async function linkCaregiverToSurvivor(patientId: string, caregiverCodeOrId: string): Promise<{ success: boolean; message: string }> {
+export async function linkCaregiverToSurvivor(
+  patientId: string,
+  caregiverCodeOrId: string
+): Promise<{ success: boolean; message: string }> {
   const caregivers = getLocalCache<CaregiverProfile[]>('rp_caregivers', MOCK_CAREGIVERS);
-  const targetCaregiver = caregivers.find(
-    c => c.caregiverCode.toUpperCase() === caregiverCodeOrId.toUpperCase() || c.id === caregiverCodeOrId || c.email.toLowerCase() === caregiverCodeOrId.toLowerCase()
+  const normalized = caregiverCodeOrId.toLowerCase();
+
+  const target = caregivers.find(
+    (c) =>
+      c.caregiverCode.toLowerCase() === normalized ||
+      c.id === caregiverCodeOrId ||
+      c.email.toLowerCase() === normalized
   );
 
-  if (!targetCaregiver) {
+  if (!target) {
     return { success: false, message: 'Caregiver code or email not found. Try CARE-9901 or CARE-4420.' };
   }
 
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  const patientIndex = survivors.findIndex(s => s.id === patientId);
-  if (patientIndex !== -1) {
-    if (!survivors[patientIndex].caregiverIds.includes(targetCaregiver.id)) {
-      survivors[patientIndex].caregiverIds.push(targetCaregiver.id);
-      setLocalCache('rp_survivors', survivors);
-    }
+  const idx = survivors.findIndex((s) => s.id === patientId);
+  if (idx !== -1 && !survivors[idx].caregiverIds.includes(target.id)) {
+    survivors[idx].caregiverIds.push(target.id);
+    setLocalCache('rp_survivors', survivors);
   }
 
-  return { 
-    success: true, 
-    message: `Successfully linked caregiver ${targetCaregiver.name} (${targetCaregiver.role})!` 
-  };
+  return { success: true, message: `Successfully linked caregiver ${target.name} (${target.role})!` };
 }
 
 export async function updateSurvivorSafetyStatus(
-  patientId: string, 
-  status: SafetyStatus, 
+  patientId: string,
+  status: SafetyStatus,
   helpTitle?: string
 ): Promise<void> {
-  const lastHelpRequested = helpTitle ? {
-    type: status,
-    timestamp: new Date().toISOString(),
-    title: helpTitle
-  } : undefined;
-
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  const index = survivors.findIndex(s => s.id === patientId);
-  if (index !== -1) {
-    survivors[index].safetyStatus = status;
-    if (lastHelpRequested) {
-      survivors[index].lastHelpRequested = lastHelpRequested;
-    }
-    setLocalCache('rp_survivors', survivors);
+  const idx = survivors.findIndex((s) => s.id === patientId);
+  if (idx === -1) return;
+
+  survivors[idx].safetyStatus = status;
+  if (helpTitle) {
+    survivors[idx].lastHelpRequested = {
+      type:      status,
+      timestamp: new Date().toISOString(),
+      title:     helpTitle
+    };
   }
+  setLocalCache('rp_survivors', survivors);
 }
 
 export async function broadcastEmergencySOS(
-  patientId: string, 
+  patientId: string,
   location?: { lat?: number; lng?: number; address?: string }
 ): Promise<EmergencyLog> {
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  const patient = survivors.find(s => s.id === patientId) || survivors[0];
+  const patient   = survivors.find((s) => s.id === patientId) ?? survivors[0];
 
   const newLog: EmergencyLog = {
-    id: `log-${Date.now()}`,
-    patientId: patient.id,
+    id:          `log-${Date.now()}`,
+    patientId:   patient.id,
     patientName: patient.name,
-    timestamp: new Date().toISOString(),
-    type: 'SOS_BUTTON',
+    timestamp:   new Date().toISOString(),
+    type:        'SOS_BUTTON',
     location,
-    resolved: false,
-    notes: `EMERGENCY SOS Broadcasted! Alert dispatched to ${patient.caregiverIds.length} linked caregivers & EMS provider.`
+    resolved:    false,
+    notes:       `EMERGENCY SOS Broadcasted! Alert dispatched to ${patient.caregiverIds.length} linked caregivers & EMS provider.`
   };
 
   const logs = getLocalCache<EmergencyLog[]>('rp_logs', MOCK_LOGS);
-  logs.unshift(newLog);
-  setLocalCache('rp_logs', logs);
+  setLocalCache('rp_logs', [newLog, ...logs]);
   await updateSurvivorSafetyStatus(patient.id, 'CRISIS_SOS', 'EMERGENCY SOS TRIGGERED');
-
   return newLog;
 }
 
@@ -374,17 +373,17 @@ export async function getEmergencyLogs(): Promise<EmergencyLog[]> {
 }
 
 export async function updateSurvivorHealthConditions(
-  patientId: string, 
-  conditions: PatientCondition[], 
+  patientId: string,
+  conditions: PatientCondition[],
   substanceType: string,
   allergyNotes?: string
 ): Promise<void> {
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  const idx = survivors.findIndex(s => s.id === patientId);
-  if (idx !== -1) {
-    survivors[idx].preExistingConditions = conditions;
-    survivors[idx].substanceType = substanceType;
-    if (allergyNotes !== undefined) survivors[idx].allergyNotes = allergyNotes;
-    setLocalCache('rp_survivors', survivors);
-  }
+  const idx = survivors.findIndex((s) => s.id === patientId);
+  if (idx === -1) return;
+
+  survivors[idx].preExistingConditions = conditions;
+  survivors[idx].substanceType         = substanceType;
+  if (allergyNotes !== undefined) survivors[idx].allergyNotes = allergyNotes;
+  setLocalCache('rp_survivors', survivors);
 }
