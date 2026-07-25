@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { EmergencyLog } from '../../types';
-import { getEmergencyLogs } from '../../services/firebaseService';
+import { getEmergencyLogs, subscribeDatabaseUpdates } from '../../services/firebaseService';
 import { 
   Stethoscope, 
   Siren, 
@@ -27,6 +27,10 @@ export const ServiceProviderDashboard: React.FC<ServiceProviderDashboardProps> =
 
   useEffect(() => {
     loadLogs();
+    const unsubscribe = subscribeDatabaseUpdates(() => {
+      loadLogs();
+    });
+    return unsubscribe;
   }, []);
 
   const loadLogs = async () => {

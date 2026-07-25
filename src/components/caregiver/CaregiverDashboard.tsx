@@ -4,7 +4,8 @@ import {
   getAssignedPatientsForCaregiver, 
   getLinkedCaregiversForSurvivor,
   updateSurvivorSafetyStatus,
-  getEmergencyLogs 
+  getEmergencyLogs,
+  subscribeDatabaseUpdates
 } from '../../services/firebaseService';
 import { PatientCard } from './PatientCard';
 import { DeescalationEngine } from './DeescalationEngine';
@@ -26,6 +27,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({ caregive
 
   useEffect(() => {
     loadDashboardData();
+    const unsubscribe = subscribeDatabaseUpdates(() => {
+      loadDashboardData();
+    });
+    return unsubscribe;
   }, [caregiverId]);
 
   const loadDashboardData = async () => {

@@ -3,43 +3,25 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-main: #0f172a;
+    --text-main: #f8fafc;
+  }
+
   body {
-    @apply bg-slate-950 text-slate-100 font-sans antialiased selection:bg-teal-500 selection:text-white min-h-screen transition-colors duration-300;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    @apply font-sans antialiased selection:bg-teal-500 selection:text-white min-h-screen transition-colors duration-300;
     -webkit-tap-highlight-color: transparent;
   }
 
   body.theme-light {
-    @apply bg-slate-100 text-slate-900 selection:bg-teal-600 selection:text-white;
-  }
-
-  /* Light theme card overrides */
-  body.theme-light .bg-slate-900 {
-    @apply bg-white text-slate-900 border-slate-200 shadow-lg !important;
-  }
-  body.theme-light .bg-slate-800 {
-    @apply bg-slate-50 text-slate-900 border-slate-200 !important;
-  }
-  body.theme-light .bg-slate-950 {
-    @apply bg-slate-100 text-slate-900 border-slate-200 !important;
-  }
-  body.theme-light .text-slate-100 {
-    @apply text-slate-900 !important;
-  }
-  body.theme-light .text-slate-200 {
-    @apply text-slate-800 !important;
-  }
-  body.theme-light .text-slate-300 {
-    @apply text-slate-700 !important;
-  }
-  body.theme-light .text-slate-400 {
-    @apply text-slate-600 !important;
-  }
-  body.theme-light .border-slate-800, 
-  body.theme-light .border-slate-700 {
-    @apply border-slate-200 !important;
+    --bg-main: #f8fafc;
+    --text-main: #0f172a;
   }
 }
 
+/* Accessible Screen Reader Utility */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -59,4 +41,32 @@
 
 .animate-fadeIn {
   animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* Light Theme Card & Text Utilities */
+body.theme-light .card-theme {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.theme-light .card-sub-theme {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.theme-light .text-muted-theme {
+  color: #475569 !important;
+}
+
+body.theme-light .text-heading-theme {
+  color: #0f172a !important;
+}
+
+body.theme-light .input-theme {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
 }

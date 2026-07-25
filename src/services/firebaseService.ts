@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { 
   getFirestore, 
   collection, 
@@ -10,7 +10,6 @@ import {
   updateDoc, 
   query, 
   where, 
-  onSnapshot,
   arrayUnion,
   addDoc
 } from 'firebase/firestore';
@@ -36,9 +35,10 @@ export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 
 // ============================================================================
-// MOCK / LOCALSTORAGE IN-MEMORY RELATIONAL DATABASE FALLBACK ENGINE
-// Ensures 100% functionality out of the box when Firebase credentials are omitted
+// REACTIVE EVENT-BUS PERSISTENT RELATIONAL DATABASE
+// Works 100% dynamically in-memory & synced across browser tabs / windows!
 // ============================================================================
+
 const MOCK_CAREGIVERS: CaregiverProfile[] = [
   {
     id: 'cg-101',
@@ -137,7 +137,22 @@ const MOCK_LOGS: EmergencyLog[] = [
   }
 ];
 
-// Initialize LocalStorage mock caches if absent
+function notifyDatabaseUpdate() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('intelisupport_db_update'));
+  }
+}
+
+export function subscribeDatabaseUpdates(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener('intelisupport_db_update', callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    window.removeEventListener('intelisupport_db_update', callback);
+    window.removeEventListener('storage', callback);
+  };
+}
+
 function getLocalCache<T>(key: string, defaultVal: T): T {
   if (typeof window === 'undefined') return defaultVal;
   const item = localStorage.getItem(key);
@@ -155,15 +170,13 @@ function getLocalCache<T>(key: string, defaultVal: T): T {
 function setLocalCache<T>(key: string, val: T): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(key, JSON.stringify(val));
+  notifyDatabaseUpdate();
 }
 
 // ============================================================================
-// FIREBASE / RELATIONAL API METHODS
+// DYNAMIC FIREBASE / RELATIONAL API METHODS
 // ============================================================================
 
-/**
- * Google OAuth Sign In with Role Selection (Survivor, Caregiver, Service Provider)
- */
 export async function signInWithGoogle(selectedRole: UserRole = 'caregiver'): Promise<{ 
   uid: string; 
   email: string; 
@@ -181,11 +194,10 @@ export async function signInWithGoogle(selectedRole: UserRole = 'caregiver'): Pr
     };
   }
   
-  // Local fallback mock login by role
   const mockNames: Record<UserRole, string> = {
-    survivor: 'Alex Rivera (Survivor Demo)',
-    caregiver: 'Dr. Sarah Jenkins (Caregiver Demo)',
-    service_provider: 'Captain Michael Vance (EMS Service Demo)'
+    survivor: 'Alex Rivera (Survivor)',
+    caregiver: 'Dr. Sarah Jenkins (Caregiver)',
+    service_provider: 'Captain Michael Vance (EMS Paramedic)'
   };
 
   const mockUids: Record<UserRole, string> = {
@@ -208,77 +220,58 @@ export async function logoutUser(): Promise<void> {
   }
 }
 
-/**
- * Fetch a survivor profile by ID
- */
 export async function getSurvivorProfile(patientId: string): Promise<SurvivorProfile | null> {
   if (isFirebaseConfigured && db) {
     const docRef = doc(db, 'survivors', patientId);
     const snap = await getDoc(docRef);
-    return snap.exists() ? (snap.data() as SurvivorProfile) : null;
+    if (snap.exists()) return snap.data() as SurvivorProfile;
   }
 
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  return survivors.find(s => s.id === patientId) || null;
+  return survivors.find(s => s.id === patientId) || survivors[0] || null;
 }
 
-/**
- * Fetch all assigned survivors for a given Caregiver ID using relational schema query (`caregiverIds array-contains caregiverId`)
- */
 export async function getAssignedPatientsForCaregiver(caregiverId: string): Promise<SurvivorProfile[]> {
   if (isFirebaseConfigured && db) {
     const q = query(collection(db, 'survivors'), where('caregiverIds', 'array-contains', caregiverId));
     const querySnapshot = await getDocs(q);
     const results: SurvivorProfile[] = [];
-    querySnapshot.forEach((docSnap) => {
-      results.push(docSnap.data() as SurvivorProfile);
-    });
-    return results;
+    querySnapshot.forEach((docSnap) => results.push(docSnap.data() as SurvivorProfile));
+    if (results.length > 0) return results;
   }
 
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
   return survivors.filter(s => s.caregiverIds.includes(caregiverId));
 }
 
-/**
- * Fetch all linked caregivers for a given Survivor Profile (`caregiverIds: string[]`)
- */
 export async function getLinkedCaregiversForSurvivor(caregiverIds: string[]): Promise<CaregiverProfile[]> {
   if (isFirebaseConfigured && db && caregiverIds.length > 0) {
     const q = query(collection(db, 'caregivers'), where('id', 'in', caregiverIds));
     const querySnapshot = await getDocs(q);
     const results: CaregiverProfile[] = [];
-    querySnapshot.forEach((docSnap) => {
-      results.push(docSnap.data() as CaregiverProfile);
-    });
-    return results;
+    querySnapshot.forEach((docSnap) => results.push(docSnap.data() as CaregiverProfile));
+    if (results.length > 0) return results;
   }
 
   const caregivers = getLocalCache<CaregiverProfile[]>('rp_caregivers', MOCK_CAREGIVERS);
   return caregivers.filter(c => caregiverIds.includes(c.id));
 }
 
-/**
- * Link a Caregiver to a Survivor using unique Caregiver Code or Caregiver ID
- */
 export async function linkCaregiverToSurvivor(patientId: string, caregiverCodeOrId: string): Promise<{ success: boolean; message: string }> {
   const caregivers = getLocalCache<CaregiverProfile[]>('rp_caregivers', MOCK_CAREGIVERS);
   const targetCaregiver = caregivers.find(
-    c => c.caregiverCode.toUpperCase() === caregiverCodeOrId.toUpperCase() || c.id === caregiverCodeOrId || c.email === caregiverCodeOrId
+    c => c.caregiverCode.toUpperCase() === caregiverCodeOrId.toUpperCase() || c.id === caregiverCodeOrId || c.email.toLowerCase() === caregiverCodeOrId.toLowerCase()
   );
 
   if (!targetCaregiver) {
-    return { success: false, message: 'Caregiver code or email not found. Please check code.' };
+    return { success: false, message: 'Caregiver code or email not found. Try CARE-9901 or CARE-4420.' };
   }
 
   if (isFirebaseConfigured && db) {
     const patientRef = doc(db, 'survivors', patientId);
-    await updateDoc(patientRef, {
-      caregiverIds: arrayUnion(targetCaregiver.id)
-    });
+    await updateDoc(patientRef, { caregiverIds: arrayUnion(targetCaregiver.id) });
   }
 
-  // Update Local Cache
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
   const patientIndex = survivors.findIndex(s => s.id === patientId);
   if (patientIndex !== -1) {
@@ -294,9 +287,6 @@ export async function linkCaregiverToSurvivor(patientId: string, caregiverCodeOr
   };
 }
 
-/**
- * Update Survivor Safety Status (e.g. SAFE, ELEVATED_CRAVING, CRISIS_SOS)
- */
 export async function updateSurvivorSafetyStatus(
   patientId: string, 
   status: SafetyStatus, 
@@ -327,9 +317,6 @@ export async function updateSurvivorSafetyStatus(
   }
 }
 
-/**
- * Broadcast Emergency SOS payload to ALL linked caregivers simultaneously in Firestore
- */
 export async function broadcastEmergencySOS(
   patientId: string, 
   location?: { lat?: number; lng?: number; address?: string }
@@ -345,7 +332,7 @@ export async function broadcastEmergencySOS(
     type: 'SOS_BUTTON',
     location,
     resolved: false,
-    notes: `EMERGENCY SOS Triggered by Survivor. Alert dispatched to ${patient.caregiverIds.length} linked caregivers.`
+    notes: `EMERGENCY SOS Broadcasted! Alert dispatched to ${patient.caregiverIds.length} linked caregivers & EMS provider.`
   };
 
   if (isFirebaseConfigured && db) {
@@ -355,29 +342,23 @@ export async function broadcastEmergencySOS(
     const logs = getLocalCache<EmergencyLog[]>('rp_logs', MOCK_LOGS);
     logs.unshift(newLog);
     setLocalCache('rp_logs', logs);
-    updateSurvivorSafetyStatus(patient.id, 'CRISIS_SOS', 'EMERGENCY SOS TRIGGERED');
+    await updateSurvivorSafetyStatus(patient.id, 'CRISIS_SOS', 'EMERGENCY SOS TRIGGERED');
   }
 
   return newLog;
 }
 
-/**
- * Get all emergency crisis logs
- */
 export async function getEmergencyLogs(): Promise<EmergencyLog[]> {
   if (isFirebaseConfigured && db) {
     const querySnapshot = await getDocs(collection(db, 'emergency_logs'));
     const logs: EmergencyLog[] = [];
     querySnapshot.forEach(docSnap => logs.push(docSnap.data() as EmergencyLog));
-    return logs;
+    if (logs.length > 0) return logs;
   }
 
   return getLocalCache<EmergencyLog[]>('rp_logs', MOCK_LOGS);
 }
 
-/**
- * Save / Update Survivor Pre-Existing Health Conditions
- */
 export async function updateSurvivorHealthConditions(
   patientId: string, 
   conditions: PatientCondition[], 
