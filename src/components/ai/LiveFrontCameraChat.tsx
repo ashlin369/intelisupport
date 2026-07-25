@@ -14,7 +14,8 @@ import {
   Radio,
   ArrowRight,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Eye
 } from 'lucide-react';
 import { triggerHaptic, announceToScreenReader } from '../../utils/AccessibilityHelpers';
 
@@ -32,7 +33,7 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
   const [lastAnalysis, setLastAnalysis] = useState<StepGuidedAnalysis | null>(null);
   const [alertSent, setAlertSent] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
-  const [chatLog, setChatLog] = useState<Array<{ step: number; text: string; feedback: string; time: string }>>([]);
+  const [stepVerified, setStepVerified] = useState(false);
 
   // Initialize Front Camera Stream
   useEffect(() => {
@@ -43,12 +44,19 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
     };
   }, []);
 
-  // Perform step analysis when step changes or video starts
+  // Continuous Camera Inspection Loop (every 3 seconds)
   useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
     if (isStreaming) {
       evaluateCurrentStep(currentStep);
+      interval = setInterval(() => {
+        evaluateCurrentStep(currentStep);
+      }, 3500);
     }
-  }, [currentStep, isStreaming]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isStreaming, currentStep]);
 
   const startCamera = async () => {
     try {
@@ -62,7 +70,7 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
         setIsStreaming(true);
       }
     } catch (err) {
-      console.warn('Camera stream permission error, running step guidance mode:', err);
+      console.warn('Camera stream permission error, running vision simulation:', err);
       setIsStreaming(true);
     }
   };
@@ -101,21 +109,16 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
     try {
       const result = await analyzeStepGuidedVision(base64Frame, stepIdx);
       setLastAnalysis(result);
+      setStepVerified(result.shouldAdvanceStep);
 
-      const fullMessage = `${result.currentInstruction} ${result.feedbackPrompt}`;
+      // ONLY advance step if AI Vision explicitly verifies action completion!
+      if (result.shouldAdvanceStep && result.currentStepIndex !== currentStep) {
+        setCurrentStep(result.currentStepIndex);
+        triggerHaptic(60);
 
-      setChatLog((prev) => [
-        ...prev,
-        {
-          step: stepIdx + 1,
-          text: result.currentInstruction,
-          feedback: result.feedbackPrompt,
-          time: new Date().toLocaleTimeString()
+        if (audioEnabled) {
+          speakText(`Action verified! ${result.currentInstruction}`);
         }
-      ]);
-
-      if (audioEnabled) {
-        speakText(fullMessage);
       }
 
       if (result.shouldAlertCaregivers && !alertSent) {
@@ -129,14 +132,10 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
     }
   };
 
-  const handleNextStep = () => {
+  const handleManualNextStep = () => {
     triggerHaptic(50);
     stopSpeech();
-    if (currentStep < 3) {
-      setCurrentStep((prev) => prev + 1);
-    } else {
-      setCurrentStep(0); // Reset protocol loop
-    }
+    setCurrentStep((prev) => (prev < 3 ? prev + 1 : 0));
   };
 
   return (
@@ -159,11 +158,11 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
       <div className="flex items-center justify-between pr-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-400 shadow-md">
-            <Radio className="w-5 h-5 animate-pulse" />
+            <Eye className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <h3 className="text-lg font-black tracking-tight">Step-by-Step Interactive AI Camera Coach</h3>
-            <p className="text-xs text-slate-400">Adaptive de-escalation guided by visual action completion</p>
+            <h3 className="text-lg font-black tracking-tight">AI Vision Action Completion Coach</h3>
+            <p className="text-xs text-slate-400">Step advances ONLY when AI verifies your physical completion</p>
           </div>
         </div>
 
@@ -191,7 +190,7 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
         </div>
       )}
 
-      {/* Hidden Offscreen Canvas for Frame Capture */}
+      {/* Hidden Offscreen Canvas */}
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Live Video Viewfinder */}
@@ -209,8 +208,10 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
             <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full bg-slate-900/90 text-teal-300 border border-teal-500/50 backdrop-blur-md shadow">
               Doing: {lastAnalysis.userActivity.substring(0, 30)}...
             </span>
-            <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-600 backdrop-blur-md shadow">
-              Feeling: {lastAnalysis.emotionalState}
+            <span className={`text-[10px] font-extrabold uppercase px-3 py-1 rounded-full backdrop-blur-md border shadow ${
+              stepVerified ? 'bg-emerald-950/90 text-emerald-300 border-emerald-600' : 'bg-amber-950/90 text-amber-300 border-amber-600'
+            }`}>
+              {stepVerified ? '✓ Step Verified' : 'In Progress...'}
             </span>
           </div>
         )}
@@ -221,8 +222,9 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
         <div className="bg-gradient-to-r from-teal-950/90 via-slate-900 to-indigo-950/90 border border-teal-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
           <div className="flex items-center justify-between text-xs font-mono font-bold text-teal-400">
             <span>STEP {currentStep + 1} OF 4</span>
-            <span className="flex items-center gap-1 text-emerald-400">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Action Feedback Verified
+            <span className={`flex items-center gap-1 ${stepVerified ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {stepVerified ? <CheckCircle2 className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+              {stepVerified ? 'Physical Action Verified' : 'Observing Completion...'}
             </span>
           </div>
 
@@ -231,18 +233,12 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
 
           <button
             type="button"
-            onClick={handleNextStep}
+            onClick={handleManualNextStep}
             disabled={analyzing}
-            className="w-full min-h-[46px] bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md transition-transform active:scale-95"
+            className="w-full min-h-[46px] bg-slate-800 hover:bg-slate-700 text-teal-300 font-bold text-xs rounded-xl flex items-center justify-center gap-2 border border-slate-700 transition-transform active:scale-95"
           >
-            {analyzing ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <span>I have completed Step {currentStep + 1} • Move to Next Step</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
+            <span>Manual Override • Advance to Step {((currentStep + 1) % 4) + 1}</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       )}

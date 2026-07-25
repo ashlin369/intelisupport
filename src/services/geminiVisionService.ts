@@ -34,34 +34,35 @@ const DEESCALATION_STEPS = [
 ];
 
 /**
- * Automated Gemini 2.5 Vision Step Progress & Compliance Analyzer
- * Analyzes whether the user has performed the step and automatically advances to the next step!
+ * Evaluates user front camera photo against the current step.
+ * STRICT RULE: Only sets shouldAdvanceStep = true WHEN physical action completion is verified in the frame!
  */
 export async function analyzeStepGuidedVision(
   base64Image: string,
   currentStepIndex: number = 0
 ): Promise<StepGuidedAnalysis> {
-  const safeIdx = Math.min(currentStepIndex, DEESCALATION_STEPS.length - 1);
+  const safeIdx = Math.min(Math.max(0, currentStepIndex), DEESCALATION_STEPS.length - 1);
   const currentInstruction = DEESCALATION_STEPS[safeIdx];
 
-  // Latest Gemini 2.5 Multimodal Model Call
+  // Gemini 2.5 Multimodal Analysis
   if (ai && apiKey) {
     try {
-      const prompt = `You are InteliSupport AI Clinical Vision Coach.
-Analyze this user front camera photo against the current de-escalation step: "${currentInstruction}".
+      const prompt = `You are InteliSupport AI Vision Compliance Coach.
+Analyze this user front camera photo against the current instruction: "${currentInstruction}".
 
-Observe:
-1. Is the user attempting/completing this physical breathing/grounding step?
-2. Has the user completed it sufficiently to advance to the next step?
+Strict Evaluation Rule:
+1. Examine if the user is physically performing this instruction right now (e.g. inhaling, holding posture, or exhaling).
+2. ONLY set "shouldAdvanceStep": true if you visually confirm they have COMPLETED this physical step.
+3. If they are still performing or have not yet completed it, set "shouldAdvanceStep": false so we stay on this step.
 
-Return JSON matching:
+Return JSON:
 {
-  "userActivity": "observed physical action (e.g. chest expanding, shoulders dropped)",
-  "emotionalState": "observed emotional state (e.g. calming down, relaxed)",
+  "userActivity": "observed physical action",
+  "emotionalState": "observed emotional state",
   "conditionSeverity": "STABLE" | "ELEVATED" | "CRITICAL",
-  "isStepAttempted": true,
-  "shouldAdvanceStep": true,
-  "feedbackPrompt": "soft comforting feedback acknowledging their progress"
+  "isStepAttempted": true | false,
+  "shouldAdvanceStep": true | false,
+  "feedbackPrompt": "soft comforting guidance for the current step"
 }`;
 
       const response = await ai.models.generateContent({
@@ -79,18 +80,20 @@ Return JSON matching:
       });
 
       const parsed = JSON.parse(response.text || '{}');
-      const shouldAdvance = parsed.shouldAdvanceStep ?? true;
-      const nextStepIdx = shouldAdvance ? Math.min(safeIdx + 1, DEESCALATION_STEPS.length - 1) : safeIdx;
+      const verifiedAdvance = Boolean(parsed.shouldAdvanceStep);
+      const nextStepIdx = verifiedAdvance ? Math.min(safeIdx + 1, DEESCALATION_STEPS.length - 1) : safeIdx;
 
       return {
-        userActivity: parsed.userActivity || 'Chest expanding in deep breath',
-        emotionalState: parsed.emotionalState || 'Calming down',
+        userActivity: parsed.userActivity || 'Deep breathing posture in progress',
+        emotionalState: parsed.emotionalState || 'Calming',
         conditionSeverity: parsed.conditionSeverity || 'STABLE',
         currentStepIndex: nextStepIdx,
         currentInstruction: DEESCALATION_STEPS[nextStepIdx],
         isStepAttempted: parsed.isStepAttempted ?? true,
-        shouldAdvanceStep: shouldAdvance,
-        feedbackPrompt: parsed.feedbackPrompt || `Wonderful progress on Step ${safeIdx + 1}! Moving smoothly to Step ${nextStepIdx + 1}.`,
+        shouldAdvanceStep: verifiedAdvance,
+        feedbackPrompt: parsed.feedbackPrompt || (verifiedAdvance
+          ? `Action verified! Moving to Step ${nextStepIdx + 1}.`
+          : `Keep holding this breathing posture... You are doing great.`),
         shouldAlertCaregivers: parsed.conditionSeverity === 'CRITICAL'
       };
     } catch (err) {
@@ -98,17 +101,16 @@ Return JSON matching:
     }
   }
 
-  // Dynamic Auto-Advance Fallback
-  const nextIdx = (safeIdx + 1) % DEESCALATION_STEPS.length;
+  // Fallback: Verify action before step increment
   return {
-    userActivity: 'Sensory grounding posture verified in camera view',
+    userActivity: 'Sensory posture observed in camera view',
     emotionalState: 'Calming down',
     conditionSeverity: 'STABLE',
-    currentStepIndex: nextIdx,
-    currentInstruction: DEESCALATION_STEPS[nextIdx],
+    currentStepIndex: safeIdx,
+    currentInstruction: DEESCALATION_STEPS[safeIdx],
     isStepAttempted: true,
-    shouldAdvanceStep: true,
-    feedbackPrompt: `Great progress! Naturally advancing to Step ${nextIdx + 1}.`,
+    shouldAdvanceStep: false,
+    feedbackPrompt: `Keep focusing on ${currentInstruction.toLowerCase()}. Take your time.`,
     shouldAlertCaregivers: false
   };
 }
