@@ -12,7 +12,10 @@ import { CaregiverDashboard } from './components/caregiver/CaregiverDashboard';
 import { ServiceProviderDashboard } from './components/service_provider/ServiceProviderDashboard';
 import { AmbulanceDirectory } from './components/shared/AmbulanceDirectory';
 import { OnboardingFlow } from './components/shared/OnboardingFlow';
+import { LanguageSelector } from './components/shared/LanguageSelector';
 import { logoutUser } from './services/firebaseService';
+import { flushOfflineQueue } from './services/offlineQueue';
+import { SupportedLanguage } from './services/i18nVoiceService';
 
 export const App: React.FC = () => {
   const [persona, setPersona] = useState<Persona>('survivor');
@@ -22,6 +25,7 @@ export const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [selectedLang, setSelectedLang] = useState<SupportedLanguage>('en-US');
 
   const handleAuthSuccess = (u: { uid: string; email: string; displayName: string; role: UserRole }, isNewAccount: boolean = false) => {
     setUser(u);
@@ -34,13 +38,20 @@ export const App: React.FC = () => {
     }
   };
 
-  // Network connection state listener & Theme Sync
+  // Network connection state listener, offline SOS queue flush & Theme Sync
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      // Flush any queued emergency SOS alerts when coming back online
+      flushOfflineQueue();
+    };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Flush queue on initial load if already online
+    if (navigator.onLine) flushOfflineQueue();
 
     // Apply body class for theme
     if (theme === 'light') {
@@ -145,7 +156,10 @@ export const App: React.FC = () => {
             <span className="font-bold">InteliSupport PWA</span>
             <span>• Multi-Role (Individual, Caregiver & Service Provider) SUD Platform</span>
           </div>
-          <p className="text-[11px]">Emergency Overdose Hotline: Call 911 | SAMHSA Helpline: 1-800-662-4357</p>
+          <div className="flex items-center gap-4">
+            <LanguageSelector selectedLanguage={selectedLang} onSelectLanguage={setSelectedLang} />
+            <p className="text-[11px]">Emergency Overdose Hotline: Call 911 | SAMHSA Helpline: 1-800-662-4357</p>
+          </div>
         </div>
       </footer>
     </div>

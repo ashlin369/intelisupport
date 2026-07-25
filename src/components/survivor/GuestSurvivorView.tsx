@@ -6,6 +6,8 @@ import { AIVisionScanner } from '../ai/AIVisionScanner';
 import { LiveFrontCameraChat } from '../ai/LiveFrontCameraChat';
 import { CravingPredictorAI } from '../ai/CravingPredictorAI';
 import { VoiceEmotionAnalyzer } from '../ai/VoiceEmotionAnalyzer';
+import { BiometricInsights } from '../ai/BiometricInsights';
+import { PeerSponsorMatcher } from '../shared/PeerSponsorMatcher';
 import { DeescalationScript, PatientCondition } from '../../types';
 import { generateDeescalationScript } from '../../services/geminiService';
 import { broadcastEmergencySOS, updateSurvivorSafetyStatus } from '../../services/firebaseService';
@@ -198,7 +200,9 @@ export const GuestSurvivorView: React.FC<GuestSurvivorViewProps> = ({
       {/* Additional AI Engines Section */}
       <div className="space-y-6 pt-4 border-t border-slate-800">
         <CravingPredictorAI />
+        <BiometricInsights />
         <VoiceEmotionAnalyzer />
+        <PeerSponsorMatcher />
       </div>
 
       {/* AI Vision Scanner Modal Overlay */}

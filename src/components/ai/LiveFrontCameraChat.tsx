@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { analyzeStepGuidedVision, StepGuidedAnalysis } from '../../services/geminiVisionService';
 import { broadcastEmergencySOS } from '../../services/firebaseService';
-import { speakText, stopSpeech } from '../../services/ttsService';
-import { 
-  Camera, 
-  Sparkles, 
-  Volume2, 
-  VolumeX, 
-  X, 
-  Siren, 
-  Activity,
-  Heart,
-  Radio,
+import { speakTextInLanguage, SupportedLanguage } from '../../services/i18nVoiceService';
+import { stopSpeech } from '../../services/ttsService';
+import { LanguageSelector } from '../shared/LanguageSelector';
+import {
+  Volume2,
+  VolumeX,
+  X,
+  Siren,
   ArrowRight,
   CheckCircle2,
   RefreshCw,
@@ -34,8 +31,8 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
   const [alertSent, setAlertSent] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [stepVerified, setStepVerified] = useState(false);
+  const [selectedLang, setSelectedLang] = useState<SupportedLanguage>('en-US');
 
-  // Initialize Front Camera Stream
   useEffect(() => {
     startCamera();
     return () => {
@@ -44,7 +41,7 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
     };
   }, []);
 
-  // Continuous Camera Inspection Loop (every 3 seconds)
+  // Continuous Camera Inspection Loop (every 3.5 seconds)
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (isStreaming) {
@@ -111,14 +108,17 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
       setLastAnalysis(result);
       setStepVerified(result.shouldAdvanceStep);
 
-      // ONLY advance step if AI Vision explicitly verifies action completion!
+      // ONLY advance step when AI Vision verifies physical action completion
       if (result.shouldAdvanceStep && result.currentStepIndex !== currentStep) {
         setCurrentStep(result.currentStepIndex);
         triggerHaptic(60);
 
         if (audioEnabled) {
-          speakText(`Action verified! ${result.currentInstruction}`);
+          speakTextInLanguage(`Action verified! ${result.currentInstruction}`, selectedLang);
         }
+      } else if (!result.shouldAdvanceStep && audioEnabled && result.feedbackPrompt) {
+        // Give encouraging feedback in user's language while they continue the current step
+        speakTextInLanguage(result.feedbackPrompt, selectedLang);
       }
 
       if (result.shouldAlertCaregivers && !alertSent) {
@@ -154,8 +154,8 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
         </button>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between pr-10">
+      {/* Header Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-400 shadow-md">
             <Eye className="w-5 h-5 animate-pulse" />
@@ -166,23 +166,27 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
           </div>
         </div>
 
-        {/* Audio Mute/Unmute Toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            if (audioEnabled) stopSpeech();
-            setAudioEnabled(!audioEnabled);
-          }}
-          className={`p-2.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition-all ${
-            audioEnabled ? 'bg-teal-950 text-teal-300 border-teal-600' : 'bg-slate-800 text-slate-400 border-slate-700'
-          }`}
-        >
-          {audioEnabled ? <Volume2 className="w-4 h-4 text-teal-400" /> : <VolumeX className="w-4 h-4" />}
-          <span>{audioEnabled ? 'Voice Live' : 'Muted'}</span>
-        </button>
+        {/* Language Selector + Audio Toggle */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <LanguageSelector selectedLanguage={selectedLang} onSelectLanguage={setSelectedLang} />
+
+          <button
+            type="button"
+            onClick={() => {
+              if (audioEnabled) stopSpeech();
+              setAudioEnabled(!audioEnabled);
+            }}
+            className={`p-2.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition-all ${
+              audioEnabled ? 'bg-teal-950 text-teal-300 border-teal-600' : 'bg-slate-800 text-slate-400 border-slate-700'
+            }`}
+          >
+            {audioEnabled ? <Volume2 className="w-4 h-4 text-teal-400" /> : <VolumeX className="w-4 h-4" />}
+            <span>{audioEnabled ? 'Voice Live' : 'Muted'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Automated Caregiver Emergency Alert Banner */}
+      {/* Caregiver Emergency Alert Banner */}
       {alertSent && (
         <div className="bg-rose-950 border border-rose-600 rounded-2xl p-3 flex items-center gap-3 text-rose-200 text-xs font-bold animate-pulse">
           <Siren className="w-5 h-5 text-rose-400 flex-shrink-0" />
@@ -202,11 +206,11 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
           className="w-full h-full object-cover transform -scale-x-100"
         />
 
-        {/* Live HUD Badges for DOING & FEELING */}
+        {/* Live HUD Badges */}
         {lastAnalysis && (
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
             <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full bg-slate-900/90 text-teal-300 border border-teal-500/50 backdrop-blur-md shadow">
-              Doing: {lastAnalysis.userActivity.substring(0, 30)}...
+              Doing: {lastAnalysis.userActivity.substring(0, 28)}...
             </span>
             <span className={`text-[10px] font-extrabold uppercase px-3 py-1 rounded-full backdrop-blur-md border shadow ${
               stepVerified ? 'bg-emerald-950/90 text-emerald-300 border-emerald-600' : 'bg-amber-950/90 text-amber-300 border-amber-600'
