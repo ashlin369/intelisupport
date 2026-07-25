@@ -4,10 +4,12 @@ import { BreathingCircle } from './BreathingCircle';
 import { RecoveryScriptView } from './RecoveryScriptView';
 import { AIVisionScanner } from '../ai/AIVisionScanner';
 import { LiveFrontCameraChat } from '../ai/LiveFrontCameraChat';
+import { CravingPredictorAI } from '../ai/CravingPredictorAI';
+import { VoiceEmotionAnalyzer } from '../ai/VoiceEmotionAnalyzer';
 import { DeescalationScript, PatientCondition } from '../../types';
 import { generateDeescalationScript } from '../../services/geminiService';
 import { broadcastEmergencySOS, updateSurvivorSafetyStatus } from '../../services/firebaseService';
-import { Flame, Wind, ShieldAlert, AlertOctagon, Phone, Heart, Sparkles, Camera, Video, UserCheck } from 'lucide-react';
+import { Flame, Wind, ShieldAlert, AlertOctagon, Phone, Heart, Sparkles, Camera, Video, UserCheck, Brain } from 'lucide-react';
 import { triggerHaptic, announceToScreenReader } from '../../utils/AccessibilityHelpers';
 
 interface GuestSurvivorViewProps {
@@ -192,6 +194,12 @@ export const GuestSurvivorView: React.FC<GuestSurvivorViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Additional AI Engines Section */}
+      <div className="space-y-6 pt-4 border-t border-slate-800">
+        <CravingPredictorAI />
+        <VoiceEmotionAnalyzer />
+      </div>
 
       {/* AI Vision Scanner Modal Overlay */}
       {showVision && (

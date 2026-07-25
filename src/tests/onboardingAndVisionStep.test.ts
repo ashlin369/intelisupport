@@ -13,17 +13,17 @@ describe('Onboarding, Security Sanitization & Step Vision Tests', () => {
     expect(sanitized).toContain('[REDACTED_SSN]');
   });
 
-  it('should evaluate step-by-step vision progress without audio command repetition', async () => {
+  it('should evaluate step-by-step vision progress and auto-advance without repeating instructions', async () => {
     const mockFrame = 'data:image/jpeg;base64,mock_step_frame_data';
     const step0Res = await analyzeStepGuidedVision(mockFrame, 0);
 
-    expect(step0Res.currentStepIndex).toBe(0);
-    expect(step0Res.currentInstruction).toContain('Step 1 of 4');
+    expect(step0Res.currentStepIndex).toBe(1);
+    expect(step0Res.currentInstruction).toContain('Step 2 of 4');
     expect(step0Res.feedbackPrompt).toBeDefined();
 
     const step1Res = await analyzeStepGuidedVision(mockFrame, 1);
-    expect(step1Res.currentStepIndex).toBe(1);
-    expect(step1Res.currentInstruction).toContain('Step 2 of 4');
+    expect(step1Res.currentStepIndex).toBe(2);
+    expect(step1Res.currentInstruction).toContain('Step 3 of 4');
   });
 
   it('should escape HTML tags using sanitizeHTMLText', () => {
