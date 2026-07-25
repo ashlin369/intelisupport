@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 font-sans antialiased selection:bg-teal-500 selection:text-white min-h-screen transition-colors duration-300;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.theme-light {
+    @apply bg-slate-100 text-slate-900 selection:bg-teal-600 selection:text-white;
+  }
+
+  /* Light theme card overrides */
+  body.theme-light .bg-slate-900 {
+    @apply bg-white text-slate-900 border-slate-200 shadow-lg !important;
+  }
+  body.theme-light .bg-slate-800 {
+    @apply bg-slate-50 text-slate-900 border-slate-200 !important;
+  }
+  body.theme-light .bg-slate-950 {
+    @apply bg-slate-100 text-slate-900 border-slate-200 !important;
+  }
+  body.theme-light .text-slate-100 {
+    @apply text-slate-900 !important;
+  }
+  body.theme-light .text-slate-200 {
+    @apply text-slate-800 !important;
+  }
+  body.theme-light .text-slate-300 {
+    @apply text-slate-700 !important;
+  }
+  body.theme-light .text-slate-400 {
+    @apply text-slate-600 !important;
+  }
+  body.theme-light .border-slate-800, 
+  body.theme-light .border-slate-700 {
+    @apply border-slate-200 !important;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out forwards;
+}

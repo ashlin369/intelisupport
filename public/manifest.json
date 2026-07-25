@@ -1,0 +1,34 @@
+{
+  "short_name": "InteliSupport",
+  "name": "InteliSupport - SUD Caregiver & Crisis Network",
+  "description": "Multi-modal zero-typing generative AI PWA for Substance Use Disorder navigation & multi-caregiver support under high cognitive load.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "Emergency SOS",
+      "short_name": "User SOS",
+      "description": "1-Tap Instant Crisis Broadcast to Caregivers",
+      "url": "/?shortcut=sos",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Caregiver Crisis",
+      "short_name": "Caregiver Help",
+      "description": "Overdose De-escalation & Narcan Guide",
+      "url": "/?shortcut=caregiver-crisis",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    }
+  ]
+}
