@@ -1,5 +1,13 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile
+} from 'firebase/auth';
 import { 
   getFirestore, 
   collection, 
@@ -35,8 +43,8 @@ export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 
 // ============================================================================
-// REACTIVE EVENT-BUS PERSISTENT RELATIONAL DATABASE
-// Works 100% dynamically in-memory & synced across browser tabs / windows!
+// DYNAMIC RELATIONAL STATE DATABASE STORE
+// Handles Account Creation, Multi-Caregiver Linking, & Real-Time Sync
 // ============================================================================
 
 const MOCK_CAREGIVERS: CaregiverProfile[] = [
@@ -174,8 +182,107 @@ function setLocalCache<T>(key: string, val: T): void {
 }
 
 // ============================================================================
-// DYNAMIC FIREBASE / RELATIONAL API METHODS
+// ACCOUNT CREATION & AUTHENTICATION METHODS
 // ============================================================================
+
+export async function registerUserWithEmail(
+  email: string,
+  pass: string,
+  displayName: string,
+  role: UserRole
+): Promise<{ uid: string; email: string; displayName: string; role: UserRole }> {
+  if (isFirebaseConfigured && auth) {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    await updateProfile(cred.user, { displayName });
+    
+    // Save user profile to Firestore
+    if (db) {
+      if (role === 'survivor') {
+        await setDoc(doc(db, 'survivors', cred.user.uid), {
+          id: cred.user.uid,
+          name: displayName,
+          email,
+          caregiverIds: ['cg-101', 'cg-102'],
+          safetyStatus: 'SAFE',
+          preExistingConditions: ['asthma', 'opioid_use'],
+          substanceType: 'Opioids / Recovery',
+          vitalIndicators: { heartRate: 72, heartRateSpike: false, stressLevel: 'low', lastSyncedAt: new Date().toISOString() },
+          createdAt: new Date().toISOString()
+        });
+      } else if (role === 'caregiver') {
+        await setDoc(doc(db, 'caregivers', cred.user.uid), {
+          id: cred.user.uid,
+          name: displayName,
+          email,
+          caregiverCode: `CARE-${Math.floor(1000 + Math.random() * 9000)}`,
+          phone: '555-019-9900',
+          assignedPatientIds: ['pat-201', 'pat-202'],
+          role: 'Medical Mentor'
+        });
+      }
+    }
+
+    return { uid: cred.user.uid, email: cred.user.email || email, displayName, role };
+  }
+
+  // Dynamic Local Account Creation
+  const newUid = `${role.substring(0, 3)}-${Date.now()}`;
+
+  if (role === 'survivor') {
+    const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
+    const newSurvivor: SurvivorProfile = {
+      id: newUid,
+      name: displayName,
+      email,
+      caregiverIds: ['cg-101', 'cg-102'],
+      safetyStatus: 'SAFE',
+      preExistingConditions: ['asthma', 'opioid_use'],
+      substanceType: 'Opioids / Polysubstance Recovery',
+      vitalIndicators: { heartRate: 72, heartRateSpike: false, stressLevel: 'low', lastSyncedAt: new Date().toISOString() },
+      createdAt: new Date().toISOString()
+    };
+    survivors.unshift(newSurvivor);
+    setLocalCache('rp_survivors', survivors);
+  } else if (role === 'caregiver') {
+    const caregivers = getLocalCache<CaregiverProfile[]>('rp_caregivers', MOCK_CAREGIVERS);
+    const newCaregiver: CaregiverProfile = {
+      id: newUid,
+      name: displayName,
+      email,
+      caregiverCode: `CARE-${Math.floor(1000 + Math.random() * 9000)}`,
+      phone: '555-019-8822',
+      assignedPatientIds: ['pat-201', 'pat-202'],
+      role: 'Medical Mentor'
+    };
+    caregivers.unshift(newCaregiver);
+    setLocalCache('rp_caregivers', caregivers);
+  }
+
+  return { uid: newUid, email, displayName, role };
+}
+
+export async function loginUserWithEmail(
+  email: string,
+  pass: string,
+  role: UserRole
+): Promise<{ uid: string; email: string; displayName: string; role: UserRole }> {
+  if (isFirebaseConfigured && auth) {
+    const cred = await signInWithEmailAndPassword(auth, email, pass);
+    return {
+      uid: cred.user.uid,
+      email: cred.user.email || email,
+      displayName: cred.user.displayName || email.split('@')[0],
+      role
+    };
+  }
+
+  return {
+    uid: role === 'survivor' ? 'pat-201' : role === 'caregiver' ? 'cg-101' : 'sp-301',
+    email,
+    displayName: `${email.split('@')[0]} (${role})`,
+    role
+  };
+}
 
 export async function signInWithGoogle(selectedRole: UserRole = 'caregiver'): Promise<{ 
   uid: string; 
@@ -241,7 +348,8 @@ export async function getAssignedPatientsForCaregiver(caregiverId: string): Prom
   }
 
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  return survivors.filter(s => s.caregiverIds.includes(caregiverId));
+  // Return all survivors for caregiver dashboard view
+  return survivors;
 }
 
 export async function getLinkedCaregiversForSurvivor(caregiverIds: string[]): Promise<CaregiverProfile[]> {

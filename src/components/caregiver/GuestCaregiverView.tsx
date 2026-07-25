@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { DeescalationEngine } from './DeescalationEngine';
 import { NarcanGuide } from './NarcanGuide';
+import { CaregiverAIChatModal } from './CaregiverAIChatModal';
 import { AlertOctagon, HeartHandshake, ShieldAlert, Sparkles, PhoneCall, Volume2 } from 'lucide-react';
 import { triggerHaptic } from '../../utils/AccessibilityHelpers';
 
 export const GuestCaregiverView: React.FC = () => {
   const [activeTool, setActiveTool] = useState<'deescalate' | 'narcan' | 'burnout' | null>(null);
+  const [showCaregiverChat, setShowCaregiverChat] = useState(false);
 
   const handleTileClick = (tool: 'deescalate' | 'narcan' | 'burnout') => {
     triggerHaptic(tool === 'narcan' ? [100, 50, 100] : 40);
@@ -32,15 +34,33 @@ export const GuestCaregiverView: React.FC = () => {
             </p>
           </div>
 
-          <a
-            href="tel:911"
-            className="min-h-[52px] px-5 bg-rose-600 hover:bg-rose-500 text-white font-extrabold rounded-2xl flex items-center gap-2.5 shadow-lg shadow-rose-950/60 transition-transform active:scale-95 flex-shrink-0"
-          >
-            <PhoneCall className="w-5 h-5 fill-current" />
-            <span>Call 911 Now</span>
-          </a>
+          <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowCaregiverChat(true)}
+              className="min-h-[52px] px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-950/60 transition-transform active:scale-95"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>AI Photo & Live Chat</span>
+            </button>
+
+            <a
+              href="tel:911"
+              className="min-h-[52px] px-4 bg-rose-600 hover:bg-rose-500 text-white font-extrabold rounded-2xl flex items-center gap-2 text-xs shadow-lg shadow-rose-950/60"
+            >
+              <PhoneCall className="w-4 h-4 fill-current" />
+              <span>Call 911 Now</span>
+            </a>
+          </div>
         </div>
       </div>
+
+      {/* Caregiver AI Chat Modal Overlay */}
+      {showCaregiverChat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+          <CaregiverAIChatModal onClose={() => setShowCaregiverChat(false)} />
+        </div>
+      )}
 
       {/* Action Tools Display */}
       {activeTool === 'narcan' ? (

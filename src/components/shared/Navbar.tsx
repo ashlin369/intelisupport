@@ -10,8 +10,8 @@ interface NavbarProps {
   onOpenAuth: () => void;
   onLogout: () => void;
   isOnline: boolean;
-  activeTab: 'home' | 'profile' | 'facilities';
-  onTabChange: (tab: 'home' | 'profile' | 'facilities') => void;
+  activeTab: 'home' | 'profile' | 'facilities' | 'ambulance';
+  onTabChange: (tab: 'home' | 'profile' | 'facilities' | 'ambulance') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -100,7 +100,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               activeTab === 'facilities' ? 'bg-slate-800 text-teal-300 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Facilities
+            Hospitals
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('ambulance')}
+            className={`min-h-[44px] px-3 rounded-xl font-bold text-xs transition-colors text-rose-400 flex items-center gap-1.5 ${
+              activeTab === 'ambulance' ? 'bg-slate-800 text-rose-300 border border-slate-700' : 'hover:text-rose-300'
+            }`}
+          >
+            Ambulance
           </button>
 
           {/* AI Vision Scanner Button */}

@@ -111,3 +111,30 @@ function getOfflineVisualBehaviorFallback(base64Image: string): VisualBehaviorAn
     confidence: 'Simulated Clinical AI'
   };
 }
+
+export interface VisionAnalysisResult {
+  title: string;
+  findings: string[];
+  recommendedAction: string;
+  isEmergency: boolean;
+  confidence: string;
+}
+
+export async function analyzePatientImage(
+  base64Image: string,
+  analysisType: 'overdose_check' | 'medication_label' | 'pupil_check' = 'overdose_check'
+): Promise<VisionAnalysisResult> {
+  const result = await analyzeVisualBehaviorAndEmotion(base64Image);
+
+  return {
+    title: result.userActivity ? `Visual Analysis: ${result.userActivity}` : 'Patient Vision Inspection',
+    findings: [
+      `Observed Activity: ${result.userActivity}`,
+      `Observed Affective State: ${result.emotionalState}`,
+      `Severity Status: ${result.conditionSeverity}`
+    ],
+    recommendedAction: result.realtimeGuidance,
+    isEmergency: result.shouldAlertCaregivers,
+    confidence: result.confidence
+  };
+}

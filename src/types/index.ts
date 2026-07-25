@@ -104,3 +104,15 @@ export interface TreatmentFacility {
   open247: boolean;
   navUrl: string;
 }
+
+export interface AmbulanceUnit {
+  id: string;
+  name: string;
+  agency: string;
+  phone: string;
+  type: 'ALS_PARAMEDIC' | 'BLS_AMBULANCE' | 'MOBILE_CRISIS_TEAM' | 'AIR_AMBULANCE';
+  etaMins: number;
+  distanceKm: number;
+  status: 'DISPATCH_READY' | 'EN_ROUTE' | 'ON_CALL';
+  narcanEquipped: boolean;
+}

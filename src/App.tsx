@@ -10,12 +10,13 @@ import { SurvivorProfileView } from './components/survivor/SurvivorProfileView';
 import { GuestCaregiverView } from './components/caregiver/GuestCaregiverView';
 import { CaregiverDashboard } from './components/caregiver/CaregiverDashboard';
 import { ServiceProviderDashboard } from './components/service_provider/ServiceProviderDashboard';
+import { AmbulanceDirectory } from './components/shared/AmbulanceDirectory';
 import { logoutUser } from './services/firebaseService';
 
 export const App: React.FC = () => {
   const [persona, setPersona] = useState<Persona>('survivor');
   const [theme, setTheme] = useState<ThemeMode>('dark');
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'facilities'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'facilities' | 'ambulance'>('home');
   const [user, setUser] = useState<{ uid: string; email: string; displayName: string; role: UserRole } | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -93,9 +94,14 @@ export const App: React.FC = () => {
           )
         )}
 
-        {/* Tab Route 2: Facilities & Google Maps Grounding */}
+        {/* Tab Route 2: Hospitals & Google Maps Grounding */}
         {activeTab === 'facilities' && (
           <GoogleMapsLocator />
+        )}
+
+        {/* Tab Route 3: 24/7 Ambulance & EMS Dispatch Directory */}
+        {activeTab === 'ambulance' && (
+          <AmbulanceDirectory />
         )}
 
         {/* Tab Route 3: Survivor Profile & Multi-Caregiver Linking */}

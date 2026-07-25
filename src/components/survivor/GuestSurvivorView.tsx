@@ -3,10 +3,11 @@ import { CravingTile } from './CravingTile';
 import { BreathingCircle } from './BreathingCircle';
 import { RecoveryScriptView } from './RecoveryScriptView';
 import { AIVisionScanner } from '../ai/AIVisionScanner';
+import { LiveFrontCameraChat } from '../ai/LiveFrontCameraChat';
 import { DeescalationScript, PatientCondition } from '../../types';
 import { generateDeescalationScript } from '../../services/geminiService';
 import { broadcastEmergencySOS, updateSurvivorSafetyStatus } from '../../services/firebaseService';
-import { Flame, Wind, ShieldAlert, AlertOctagon, Phone, Heart, Sparkles, Camera } from 'lucide-react';
+import { Flame, Wind, ShieldAlert, AlertOctagon, Phone, Heart, Sparkles, Camera, Video } from 'lucide-react';
 import { triggerHaptic, announceToScreenReader } from '../../utils/AccessibilityHelpers';
 
 interface GuestSurvivorViewProps {
@@ -21,6 +22,7 @@ export const GuestSurvivorView: React.FC<GuestSurvivorViewProps> = ({
   const [activeScript, setActiveScript] = useState<DeescalationScript | null>(null);
   const [showBreathing, setShowBreathing] = useState(false);
   const [showVision, setShowVision] = useState(false);
+  const [showLiveCamera, setShowLiveCamera] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
   const [sosActive, setSosActive] = useState(false);
 
@@ -83,18 +85,27 @@ export const GuestSurvivorView: React.FC<GuestSurvivorViewProps> = ({
           <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
             <button
               type="button"
+              onClick={() => setShowLiveCamera(true)}
+              className="min-h-[52px] px-4 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs rounded-2xl flex items-center gap-2 shadow-lg shadow-teal-950/50 transition-transform active:scale-95"
+            >
+              <Video className="w-4 h-4 fill-current" />
+              <span>Live Camera AI Chat</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowVision(true)}
               className="min-h-[52px] px-4 bg-teal-950 hover:bg-teal-900 text-teal-300 border border-teal-700/80 font-bold text-xs rounded-2xl flex items-center gap-2 shadow-md"
             >
               <Camera className="w-4 h-4 text-teal-400" />
-              <span>AI Vision Scan</span>
+              <span>AI Photo Scan</span>
             </button>
 
             <a
               href="tel:988"
-              className="min-h-[52px] px-5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold rounded-2xl flex items-center gap-2.5 shadow-lg shadow-teal-950/60 transition-transform active:scale-95"
+              className="min-h-[52px] px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-2xl flex items-center gap-2 text-xs"
             >
-              <Phone className="w-5 h-5 fill-current" />
+              <Phone className="w-4 h-4 fill-current text-teal-400" />
               <span>Call / Text 988</span>
             </a>
           </div>
@@ -111,7 +122,14 @@ export const GuestSurvivorView: React.FC<GuestSurvivorViewProps> = ({
       {/* AI Vision Scanner Modal Overlay */}
       {showVision && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-          <AIVisionScanner onClose={() => setShowVision(false)} />
+          <AIVisionScanner patientId={patientId} onClose={() => setShowVision(false)} />
+        </div>
+      )}
+
+      {/* Live Front Camera AI Vision Chat Modal Overlay */}
+      {showLiveCamera && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+          <LiveFrontCameraChat patientId={patientId} onClose={() => setShowLiveCamera(false)} />
         </div>
       )}
 
