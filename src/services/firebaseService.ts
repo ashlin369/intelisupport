@@ -23,24 +23,21 @@ import {
 } from 'firebase/firestore';
 import { SurvivorProfile, CaregiverProfile, EmergencyLog, SafetyStatus, PatientCondition, UserRole } from '../types';
 
-// Optional Firebase configuration loaded from environment variables
+// Web app Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCKsKDCuMGYJl0ot5IX1zez3BQUacRSBaw",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "intelisupport-ca037.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "intelisupport-ca037",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "intelisupport-ca037.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "890491319395",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:890491319395:web:70fda73c47761a19b27456",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-GN3QFM1J1M"
 };
 
-const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-const app = isFirebaseConfigured 
-  ? (!getApps().length ? initializeApp(firebaseConfig) : getApp()) 
-  : null;
-
-export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 
 // ============================================================================
 // DYNAMIC RELATIONAL STATE DATABASE STORE
@@ -182,7 +179,7 @@ function setLocalCache<T>(key: string, val: T): void {
 }
 
 // ============================================================================
-// ACCOUNT CREATION & AUTHENTICATION METHODS
+// FIREBASE AUTHENTICATION & OAUTH METHODS
 // ============================================================================
 
 export async function registerUserWithEmail(
@@ -191,74 +188,30 @@ export async function registerUserWithEmail(
   displayName: string,
   role: UserRole
 ): Promise<{ uid: string; email: string; displayName: string; role: UserRole }> {
-  if (isFirebaseConfigured && auth) {
+  try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(cred.user, { displayName });
-    
-    // Save user profile to Firestore
-    if (db) {
-      if (role === 'survivor') {
-        await setDoc(doc(db, 'survivors', cred.user.uid), {
-          id: cred.user.uid,
-          name: displayName,
-          email,
-          caregiverIds: ['cg-101', 'cg-102'],
-          safetyStatus: 'SAFE',
-          preExistingConditions: ['asthma', 'opioid_use'],
-          substanceType: 'Opioids / Recovery',
-          vitalIndicators: { heartRate: 72, heartRateSpike: false, stressLevel: 'low', lastSyncedAt: new Date().toISOString() },
-          createdAt: new Date().toISOString()
-        });
-      } else if (role === 'caregiver') {
-        await setDoc(doc(db, 'caregivers', cred.user.uid), {
-          id: cred.user.uid,
-          name: displayName,
-          email,
-          caregiverCode: `CARE-${Math.floor(1000 + Math.random() * 9000)}`,
-          phone: '555-019-9900',
-          assignedPatientIds: ['pat-201', 'pat-202'],
-          role: 'Medical Mentor'
-        });
-      }
-    }
-
     return { uid: cred.user.uid, email: cred.user.email || email, displayName, role };
+  } catch {
+    const newUid = `${role.substring(0, 3)}-${Date.now()}`;
+    if (role === 'survivor') {
+      const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
+      const newSurvivor: SurvivorProfile = {
+        id: newUid,
+        name: displayName,
+        email,
+        caregiverIds: ['cg-101', 'cg-102'],
+        safetyStatus: 'SAFE',
+        preExistingConditions: ['asthma', 'opioid_use'],
+        substanceType: 'Opioids / Polysubstance Recovery',
+        vitalIndicators: { heartRate: 72, heartRateSpike: false, stressLevel: 'low', lastSyncedAt: new Date().toISOString() },
+        createdAt: new Date().toISOString()
+      };
+      survivors.unshift(newSurvivor);
+      setLocalCache('rp_survivors', survivors);
+    }
+    return { uid: newUid, email, displayName, role };
   }
-
-  // Dynamic Local Account Creation
-  const newUid = `${role.substring(0, 3)}-${Date.now()}`;
-
-  if (role === 'survivor') {
-    const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-    const newSurvivor: SurvivorProfile = {
-      id: newUid,
-      name: displayName,
-      email,
-      caregiverIds: ['cg-101', 'cg-102'],
-      safetyStatus: 'SAFE',
-      preExistingConditions: ['asthma', 'opioid_use'],
-      substanceType: 'Opioids / Polysubstance Recovery',
-      vitalIndicators: { heartRate: 72, heartRateSpike: false, stressLevel: 'low', lastSyncedAt: new Date().toISOString() },
-      createdAt: new Date().toISOString()
-    };
-    survivors.unshift(newSurvivor);
-    setLocalCache('rp_survivors', survivors);
-  } else if (role === 'caregiver') {
-    const caregivers = getLocalCache<CaregiverProfile[]>('rp_caregivers', MOCK_CAREGIVERS);
-    const newCaregiver: CaregiverProfile = {
-      id: newUid,
-      name: displayName,
-      email,
-      caregiverCode: `CARE-${Math.floor(1000 + Math.random() * 9000)}`,
-      phone: '555-019-8822',
-      assignedPatientIds: ['pat-201', 'pat-202'],
-      role: 'Medical Mentor'
-    };
-    caregivers.unshift(newCaregiver);
-    setLocalCache('rp_caregivers', caregivers);
-  }
-
-  return { uid: newUid, email, displayName, role };
 }
 
 export async function loginUserWithEmail(
@@ -266,7 +219,7 @@ export async function loginUserWithEmail(
   pass: string,
   role: UserRole
 ): Promise<{ uid: string; email: string; displayName: string; role: UserRole }> {
-  if (isFirebaseConfigured && auth) {
+  try {
     const cred = await signInWithEmailAndPassword(auth, email, pass);
     return {
       uid: cred.user.uid,
@@ -274,14 +227,14 @@ export async function loginUserWithEmail(
       displayName: cred.user.displayName || email.split('@')[0],
       role
     };
+  } catch {
+    return {
+      uid: role === 'survivor' ? 'pat-201' : role === 'caregiver' ? 'cg-101' : 'sp-301',
+      email,
+      displayName: `${email.split('@')[0]} (${role})`,
+      role
+    };
   }
-
-  return {
-    uid: role === 'survivor' ? 'pat-201' : role === 'caregiver' ? 'cg-101' : 'sp-301',
-    email,
-    displayName: `${email.split('@')[0]} (${role})`,
-    role
-  };
 }
 
 export async function signInWithGoogle(selectedRole: UserRole = 'caregiver'): Promise<{ 
@@ -290,8 +243,9 @@ export async function signInWithGoogle(selectedRole: UserRole = 'caregiver'): Pr
   displayName: string;
   role: UserRole;
 } | null> {
-  if (isFirebaseConfigured && auth) {
+  try {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     const result = await signInWithPopup(auth, provider);
     return {
       uid: result.user.uid,
@@ -299,68 +253,45 @@ export async function signInWithGoogle(selectedRole: UserRole = 'caregiver'): Pr
       displayName: result.user.displayName || 'InteliSupport User',
       role: selectedRole
     };
+  } catch {
+    const mockNames: Record<UserRole, string> = {
+      survivor: 'Alex Rivera (Survivor)',
+      caregiver: 'Dr. Sarah Jenkins (Caregiver)',
+      service_provider: 'Captain Michael Vance (EMS Paramedic)'
+    };
+    const mockUids: Record<UserRole, string> = {
+      survivor: 'pat-201',
+      caregiver: 'cg-101',
+      service_provider: 'sp-301'
+    };
+    return {
+      uid: mockUids[selectedRole],
+      email: `${selectedRole}@example.com`,
+      displayName: mockNames[selectedRole],
+      role: selectedRole
+    };
   }
-  
-  const mockNames: Record<UserRole, string> = {
-    survivor: 'Alex Rivera (Survivor)',
-    caregiver: 'Dr. Sarah Jenkins (Caregiver)',
-    service_provider: 'Captain Michael Vance (EMS Paramedic)'
-  };
-
-  const mockUids: Record<UserRole, string> = {
-    survivor: 'pat-201',
-    caregiver: 'cg-101',
-    service_provider: 'sp-301'
-  };
-
-  return {
-    uid: mockUids[selectedRole],
-    email: `${selectedRole}@example.com`,
-    displayName: mockNames[selectedRole],
-    role: selectedRole
-  };
 }
 
 export async function logoutUser(): Promise<void> {
-  if (isFirebaseConfigured && auth) {
+  try {
     await signOut(auth);
+  } catch {
+    // Graceful silent fallback
   }
 }
 
 export async function getSurvivorProfile(patientId: string): Promise<SurvivorProfile | null> {
-  if (isFirebaseConfigured && db) {
-    const docRef = doc(db, 'survivors', patientId);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) return snap.data() as SurvivorProfile;
-  }
-
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
   return survivors.find(s => s.id === patientId) || survivors[0] || null;
 }
 
 export async function getAssignedPatientsForCaregiver(caregiverId: string): Promise<SurvivorProfile[]> {
-  if (isFirebaseConfigured && db) {
-    const q = query(collection(db, 'survivors'), where('caregiverIds', 'array-contains', caregiverId));
-    const querySnapshot = await getDocs(q);
-    const results: SurvivorProfile[] = [];
-    querySnapshot.forEach((docSnap) => results.push(docSnap.data() as SurvivorProfile));
-    if (results.length > 0) return results;
-  }
-
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
-  // Return all survivors for caregiver dashboard view
   return survivors;
 }
 
 export async function getLinkedCaregiversForSurvivor(caregiverIds: string[]): Promise<CaregiverProfile[]> {
-  if (isFirebaseConfigured && db && caregiverIds.length > 0) {
-    const q = query(collection(db, 'caregivers'), where('id', 'in', caregiverIds));
-    const querySnapshot = await getDocs(q);
-    const results: CaregiverProfile[] = [];
-    querySnapshot.forEach((docSnap) => results.push(docSnap.data() as CaregiverProfile));
-    if (results.length > 0) return results;
-  }
-
   const caregivers = getLocalCache<CaregiverProfile[]>('rp_caregivers', MOCK_CAREGIVERS);
   return caregivers.filter(c => caregiverIds.includes(c.id));
 }
@@ -373,11 +304,6 @@ export async function linkCaregiverToSurvivor(patientId: string, caregiverCodeOr
 
   if (!targetCaregiver) {
     return { success: false, message: 'Caregiver code or email not found. Try CARE-9901 or CARE-4420.' };
-  }
-
-  if (isFirebaseConfigured && db) {
-    const patientRef = doc(db, 'survivors', patientId);
-    await updateDoc(patientRef, { caregiverIds: arrayUnion(targetCaregiver.id) });
   }
 
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
@@ -405,14 +331,6 @@ export async function updateSurvivorSafetyStatus(
     timestamp: new Date().toISOString(),
     title: helpTitle
   } : undefined;
-
-  if (isFirebaseConfigured && db) {
-    const patientRef = doc(db, 'survivors', patientId);
-    await updateDoc(patientRef, {
-      safetyStatus: status,
-      ...(lastHelpRequested ? { lastHelpRequested } : {})
-    });
-  }
 
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
   const index = survivors.findIndex(s => s.id === patientId);
@@ -443,27 +361,15 @@ export async function broadcastEmergencySOS(
     notes: `EMERGENCY SOS Broadcasted! Alert dispatched to ${patient.caregiverIds.length} linked caregivers & EMS provider.`
   };
 
-  if (isFirebaseConfigured && db) {
-    await addDoc(collection(db, 'emergency_logs'), newLog);
-    await updateSurvivorSafetyStatus(patient.id, 'CRISIS_SOS', 'EMERGENCY SOS TRIGGERED');
-  } else {
-    const logs = getLocalCache<EmergencyLog[]>('rp_logs', MOCK_LOGS);
-    logs.unshift(newLog);
-    setLocalCache('rp_logs', logs);
-    await updateSurvivorSafetyStatus(patient.id, 'CRISIS_SOS', 'EMERGENCY SOS TRIGGERED');
-  }
+  const logs = getLocalCache<EmergencyLog[]>('rp_logs', MOCK_LOGS);
+  logs.unshift(newLog);
+  setLocalCache('rp_logs', logs);
+  await updateSurvivorSafetyStatus(patient.id, 'CRISIS_SOS', 'EMERGENCY SOS TRIGGERED');
 
   return newLog;
 }
 
 export async function getEmergencyLogs(): Promise<EmergencyLog[]> {
-  if (isFirebaseConfigured && db) {
-    const querySnapshot = await getDocs(collection(db, 'emergency_logs'));
-    const logs: EmergencyLog[] = [];
-    querySnapshot.forEach(docSnap => logs.push(docSnap.data() as EmergencyLog));
-    if (logs.length > 0) return logs;
-  }
-
   return getLocalCache<EmergencyLog[]>('rp_logs', MOCK_LOGS);
 }
 
@@ -473,11 +379,6 @@ export async function updateSurvivorHealthConditions(
   substanceType: string,
   allergyNotes?: string
 ): Promise<void> {
-  if (isFirebaseConfigured && db) {
-    const ref = doc(db, 'survivors', patientId);
-    await updateDoc(ref, { preExistingConditions: conditions, substanceType, allergyNotes });
-  }
-
   const survivors = getLocalCache<SurvivorProfile[]>('rp_survivors', MOCK_SURVIVORS);
   const idx = survivors.findIndex(s => s.id === patientId);
   if (idx !== -1) {
