@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { analyzeVisualBehaviorAndEmotion, VisualBehaviorAnalysis } from '../../services/geminiVisionService';
+import { analyzeStepGuidedVision, StepGuidedAnalysis } from '../../services/geminiVisionService';
 import { broadcastEmergencySOS } from '../../services/firebaseService';
 import { speakText, stopSpeech } from '../../services/ttsService';
 import { 
@@ -11,7 +11,10 @@ import {
   Siren, 
   Activity,
   Heart,
-  Radio
+  Radio,
+  ArrowRight,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import { triggerHaptic, announceToScreenReader } from '../../utils/AccessibilityHelpers';
 
@@ -25,12 +28,13 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [chatLog, setChatLog] = useState<Array<{ sender: 'ai' | 'user'; text: string; time: string; severity?: string }>>([]);
-  const [lastAnalysis, setLastAnalysis] = useState<VisualBehaviorAnalysis | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [lastAnalysis, setLastAnalysis] = useState<StepGuidedAnalysis | null>(null);
   const [alertSent, setAlertSent] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [chatLog, setChatLog] = useState<Array<{ step: number; text: string; feedback: string; time: string }>>([]);
 
-  // Initialize Front Camera Stream & Start Automated Continuous Loop
+  // Initialize Front Camera Stream
   useEffect(() => {
     startCamera();
     return () => {
@@ -39,21 +43,12 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
     };
   }, []);
 
-  // Continuous Hands-Free AI Analysis & Audio Narration Loop (runs every 3.5 seconds)
+  // Perform step analysis when step changes or video starts
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
     if (isStreaming) {
-      // Immediate initial frame capture
-      captureFrameAndSpeak();
-
-      interval = setInterval(() => {
-        captureFrameAndSpeak();
-      }, 3500);
+      evaluateCurrentStep(currentStep);
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isStreaming]);
+  }, [currentStep, isStreaming]);
 
   const startCamera = async () => {
     try {
@@ -67,7 +62,7 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
         setIsStreaming(true);
       }
     } catch (err) {
-      console.warn('Camera stream permission error, running automated guidance mode:', err);
+      console.warn('Camera stream permission error, running step guidance mode:', err);
       setIsStreaming(true);
     }
   };
@@ -81,13 +76,12 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
     setIsStreaming(false);
   };
 
-  const captureFrameAndSpeak = async () => {
+  const evaluateCurrentStep = async (stepIdx: number) => {
     if (analyzing) return;
     setAnalyzing(true);
 
     let base64Frame = '';
 
-    // Capture frame from video canvas if available
     if (videoRef.current && canvasRef.current && isStreaming) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -105,33 +99,43 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
     }
 
     try {
-      const result = await analyzeVisualBehaviorAndEmotion(base64Frame);
+      const result = await analyzeStepGuidedVision(base64Frame, stepIdx);
       setLastAnalysis(result);
 
-      const aiResponseText = result.realtimeGuidance;
+      const fullMessage = `${result.currentInstruction} ${result.feedbackPrompt}`;
 
-      // Update Live Chat Log (keep last 4 messages for zero-clutter UI)
       setChatLog((prev) => [
-        ...prev.slice(-3),
-        { sender: 'ai' as const, text: aiResponseText, time: new Date().toLocaleTimeString(), severity: result.conditionSeverity }
+        ...prev,
+        {
+          step: stepIdx + 1,
+          text: result.currentInstruction,
+          feedback: result.feedbackPrompt,
+          time: new Date().toLocaleTimeString()
+        }
       ]);
 
-      // Automatically speak AI guidance aloud in soothing tone
       if (audioEnabled) {
-        speakText(aiResponseText);
+        speakText(fullMessage);
       }
 
-      // Automatically dispatch caregiver SOS alert if severe distress is detected
-      if (result.shouldAlertCaregivers || result.conditionSeverity === 'CRITICAL') {
-        if (!alertSent) {
-          triggerHaptic([200, 100, 200, 100, 200]);
-          await broadcastEmergencySOS(patientId, { address: 'Live Front Camera Visual AI Detection' });
-          setAlertSent(true);
-          announceToScreenReader('Critical visual distress detected. Alert broadcasted to all linked caregivers!', 'assertive');
-        }
+      if (result.shouldAlertCaregivers && !alertSent) {
+        triggerHaptic([200, 100, 200, 100, 200]);
+        await broadcastEmergencySOS(patientId, { address: 'Live Front Camera Visual AI Detection' });
+        setAlertSent(true);
+        announceToScreenReader('Critical visual distress detected. Alert broadcasted to all linked caregivers!', 'assertive');
       }
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleNextStep = () => {
+    triggerHaptic(50);
+    stopSpeech();
+    if (currentStep < 3) {
+      setCurrentStep((prev) => prev + 1);
+    } else {
+      setCurrentStep(0); // Reset protocol loop
     }
   };
 
@@ -144,7 +148,7 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
             stopSpeech();
             onClose();
           }}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl z-20 bg-slate-800/80"
+          className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl z-20 bg-slate-800/80 focus-visible:ring-2 focus-visible:ring-teal-400"
           aria-label="Close Live Camera Chat"
         >
           <X className="w-5 h-5" />
@@ -158,8 +162,8 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
             <Radio className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <h3 className="text-lg font-black tracking-tight">Hands-Free Live AI Camera Voice Guide</h3>
-            <p className="text-xs text-slate-400">Continuous 100% automated voice support for acute distress</p>
+            <h3 className="text-lg font-black tracking-tight">Step-by-Step Interactive AI Camera Coach</h3>
+            <p className="text-xs text-slate-400">Adaptive de-escalation guided by visual action completion</p>
           </div>
         </div>
 
@@ -175,7 +179,7 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
           }`}
         >
           {audioEnabled ? <Volume2 className="w-4 h-4 text-teal-400" /> : <VolumeX className="w-4 h-4" />}
-          <span>{audioEnabled ? 'Audio Live' : 'Muted'}</span>
+          <span>{audioEnabled ? 'Voice Live' : 'Muted'}</span>
         </button>
       </div>
 
@@ -191,7 +195,7 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Live Video Viewfinder */}
-      <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 aspect-video max-h-60 flex items-center justify-center shadow-inner">
+      <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 aspect-video max-h-56 flex items-center justify-center shadow-inner">
         <video
           ref={videoRef}
           playsInline
@@ -200,58 +204,48 @@ export const LiveFrontCameraChat: React.FC<LiveFrontCameraChatProps> = ({ patien
         />
 
         {/* Live HUD Badges for DOING & FEELING */}
-        {lastAnalysis ? (
+        {lastAnalysis && (
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
             <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full bg-slate-900/90 text-teal-300 border border-teal-500/50 backdrop-blur-md shadow">
-              Doing: {lastAnalysis.userActivity.substring(0, 35)}...
+              Doing: {lastAnalysis.userActivity.substring(0, 30)}...
             </span>
-            <span className={`text-[10px] font-extrabold uppercase px-3 py-1 rounded-full backdrop-blur-md border shadow ${
-              lastAnalysis.conditionSeverity === 'CRITICAL' ? 'bg-rose-950/90 text-rose-300 border-rose-600' : 'bg-emerald-950/90 text-emerald-300 border-emerald-600'
-            }`}>
+            <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-600 backdrop-blur-md shadow">
               Feeling: {lastAnalysis.emotionalState}
             </span>
           </div>
-        ) : (
-          <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-slate-900/90 text-teal-400 border border-teal-500/50 text-[10px] font-bold animate-pulse">
-            Connecting Hands-Free Vision AI...
-          </div>
         )}
+      </div>
 
-        {/* Automated Continuous AI Pulse Indicator */}
-        <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-mono text-teal-300">
-          <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-ping"></span>
-          <span>Continuous AI Support Active (Hands-Free)</span>
+      {/* Current Step Instruction Card */}
+      {lastAnalysis && (
+        <div className="bg-gradient-to-r from-teal-950/90 via-slate-900 to-indigo-950/90 border border-teal-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
+          <div className="flex items-center justify-between text-xs font-mono font-bold text-teal-400">
+            <span>STEP {currentStep + 1} OF 4</span>
+            <span className="flex items-center gap-1 text-emerald-400">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Action Feedback Verified
+            </span>
+          </div>
+
+          <p className="text-sm font-black text-slate-100 leading-snug">{lastAnalysis.currentInstruction}</p>
+          <p className="text-xs text-teal-200 italic">{lastAnalysis.feedbackPrompt}</p>
+
+          <button
+            type="button"
+            onClick={handleNextStep}
+            disabled={analyzing}
+            className="w-full min-h-[46px] bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md transition-transform active:scale-95"
+          >
+            {analyzing ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <span>I have completed Step {currentStep + 1} • Move to Next Step</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
         </div>
-      </div>
-
-      {/* Live AI Spoken Guidance Log */}
-      <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2">
-        <span className="text-[10px] font-mono font-bold uppercase text-teal-400 tracking-wider block">
-          Spoken AI Guidance (Read Aloud Automatically):
-        </span>
-        {chatLog.length === 0 ? (
-          <p className="text-xs text-slate-500 italic">Listening and observing front camera for real-time de-escalation...</p>
-        ) : (
-          <div className="space-y-2">
-            {chatLog.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-sm font-medium border ${
-                  msg.severity === 'CRITICAL'
-                    ? 'bg-rose-950/80 border-rose-600 text-rose-100'
-                    : 'bg-slate-800/90 border-teal-500/40 text-slate-100'
-                }`}
-              >
-                <div className="flex items-center justify-between text-[9px] font-mono opacity-70 mb-1">
-                  <span>InteliSupport Voice Guidance</span>
-                  <span>{msg.time}</span>
-                </div>
-                {msg.text}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };

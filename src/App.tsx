@@ -11,6 +11,7 @@ import { GuestCaregiverView } from './components/caregiver/GuestCaregiverView';
 import { CaregiverDashboard } from './components/caregiver/CaregiverDashboard';
 import { ServiceProviderDashboard } from './components/service_provider/ServiceProviderDashboard';
 import { AmbulanceDirectory } from './components/shared/AmbulanceDirectory';
+import { OnboardingFlow } from './components/shared/OnboardingFlow';
 import { logoutUser } from './services/firebaseService';
 
 export const App: React.FC = () => {
@@ -19,7 +20,19 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'facilities' | 'ambulance'>('home');
   const [user, setUser] = useState<{ uid: string; email: string; displayName: string; role: UserRole } | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  const handleAuthSuccess = (u: { uid: string; email: string; displayName: string; role: UserRole }, isNewAccount: boolean = false) => {
+    setUser(u);
+    if (u.role === 'survivor') setPersona('survivor');
+    else if (u.role === 'caregiver') setPersona('caregiver');
+    else setPersona('service_provider');
+
+    if (isNewAccount) {
+      setShowOnboarding(true);
+    }
+  };
 
   // Network connection state listener & Theme Sync
   useEffect(() => {
@@ -110,15 +123,20 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Firebase Multi-Role Google Auth Modal */}
+      {/* Auth Login & Account Creation Modal */}
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
-        onSuccess={(u) => {
-          setUser(u);
-          setPersona(u.role);
-        }}
+        onSuccess={handleAuthSuccess}
       />
+
+      {/* Guided User Onboarding Wizard Modal */}
+      {showOnboarding && user && (
+        <OnboardingFlow
+          user={user}
+          onComplete={() => setShowOnboarding(false)}
+        />
+      )}
 
       {/* App Footer */}
       <footer className={`border-t py-6 text-center text-xs ${theme === 'light' ? 'bg-slate-200 border-slate-300 text-slate-700' : 'bg-slate-950/80 border-slate-900 text-slate-400'}`}>

@@ -1,28 +1,31 @@
 import React, { useState } from 'react';
-import { X, Shield, HeartHandshake, Stethoscope, Mail, Lock, User, LogIn, UserPlus } from 'lucide-react';
+import { X, Shield, HeartHandshake, Stethoscope, Mail, Lock, User, LogIn, UserPlus, AlertCircle } from 'lucide-react';
 import { UserRole } from '../../types';
 import { signInWithGoogle, registerUserWithEmail, loginUserWithEmail } from '../../services/firebaseService';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (user: { uid: string; email: string; displayName: string; role: UserRole }) => void;
+  onSuccess: (user: { uid: string; email: string; displayName: string; role: UserRole }, isNewAccount?: boolean) => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [selectedRole, setSelectedRole] = useState<UserRole>('survivor');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [redirectNotice, setRedirectNotice] = useState('');
 
   if (!isOpen) return null;
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setRedirectNotice('');
+
     if (!email.trim() || !password.trim()) {
       setErrorMsg('Please provide email and password.');
       return;
@@ -33,12 +36,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       if (authMode === 'register') {
         const name = displayName.trim() || email.split('@')[0];
         const user = await registerUserWithEmail(email.trim(), password.trim(), name, selectedRole);
-        onSuccess(user);
+        onSuccess(user, true);
+        onClose();
       } else {
-        const user = await loginUserWithEmail(email.trim(), password.trim(), selectedRole);
-        onSuccess(user);
+        try {
+          const user = await loginUserWithEmail(email.trim(), password.trim(), selectedRole);
+          onSuccess(user, false);
+          onClose();
+        } catch {
+          // If login fails / account not found -> automatically redirect to register mode!
+          setAuthMode('register');
+          setRedirectNotice('User account not found. Let us create your account in 1 step!');
+        }
       }
-      onClose();
     } catch (err: unknown) {
       const error = err as { message?: string };
       setErrorMsg(error.message || 'Authentication error. Please verify details.');
@@ -53,7 +63,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     try {
       const user = await signInWithGoogle(selectedRole);
       if (user) {
-        onSuccess(user);
+        onSuccess(user, false);
         onClose();
       }
     } catch (err: unknown) {
@@ -69,14 +79,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative text-slate-100 max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl transition-colors"
+          className="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-teal-400"
           aria-label="Close Auth Modal"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
-        <div className="text-center mb-5">
+        <div className="text-center mb-4">
           <div className="w-12 h-12 bg-teal-500/20 border border-teal-400/30 rounded-2xl flex items-center justify-center text-teal-400 mx-auto mb-2 shadow-md">
             {selectedRole === 'survivor' ? <HeartHandshake className="w-6 h-6" /> : selectedRole === 'caregiver' ? <Shield className="w-6 h-6" /> : <Stethoscope className="w-6 h-6" />}
           </div>
@@ -86,25 +96,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           <p className="text-xs text-slate-400 mt-0.5">InteliSupport Firebase OAuth & Cloud Firestore Accounts</p>
         </div>
 
+        {/* Redirect Notice Banner */}
+        {redirectNotice && (
+          <div className="mb-4 bg-teal-950 border border-teal-600 rounded-2xl p-3 flex items-center gap-2 text-teal-200 text-xs font-bold animate-pulse">
+            <AlertCircle className="w-4 h-4 text-teal-400 flex-shrink-0" />
+            <span>{redirectNotice}</span>
+          </div>
+        )}
+
         {/* Register vs Login Mode Switcher */}
         <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 mb-5">
           <button
             type="button"
+            onClick={() => setAuthMode('login')}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-teal-400 ${
+              authMode === 'login' ? 'bg-teal-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
             onClick={() => setAuthMode('register')}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-teal-400 ${
               authMode === 'register' ? 'bg-teal-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
             }`}
           >
             Create New Account
-          </button>
-          <button
-            type="button"
-            onClick={() => setAuthMode('login')}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-              authMode === 'login' ? 'bg-teal-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Existing Sign In
           </button>
         </div>
 

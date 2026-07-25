@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { DeescalationEngine } from './DeescalationEngine';
 import { NarcanGuide } from './NarcanGuide';
 import { CaregiverAIChatModal } from './CaregiverAIChatModal';
-import { AlertOctagon, HeartHandshake, ShieldAlert, Sparkles, PhoneCall, Volume2 } from 'lucide-react';
+import { CaregiverRearCameraVideoChat } from './CaregiverRearCameraVideoChat';
+import { AlertOctagon, HeartHandshake, ShieldAlert, Sparkles, PhoneCall, Volume2, Video } from 'lucide-react';
 import { triggerHaptic } from '../../utils/AccessibilityHelpers';
 
 export const GuestCaregiverView: React.FC = () => {
   const [activeTool, setActiveTool] = useState<'deescalate' | 'narcan' | 'burnout' | null>(null);
   const [showCaregiverChat, setShowCaregiverChat] = useState(false);
+  const [showRearCamera, setShowRearCamera] = useState(false);
 
   const handleTileClick = (tool: 'deescalate' | 'narcan' | 'burnout') => {
     triggerHaptic(tool === 'narcan' ? [100, 50, 100] : 40);
@@ -23,25 +25,34 @@ export const GuestCaregiverView: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-ping"></span>
               <span className="text-xs font-mono font-bold text-indigo-300 uppercase tracking-widest">
-                Caregiver Guest Quick Help • Zero Login
+                Caregiver Quick Help • Zero Login
               </span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-100 mt-1">
               De-escalate Acute Distress & Overdose
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
-              1-Tap real-time spoken scripts, step-by-step Narcan administration cards, and trauma guidance.
+              1-Tap real-time spoken scripts, step-by-step Narcan administration cards, and rear-camera patient video inspection.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0">
             <button
               type="button"
-              onClick={() => setShowCaregiverChat(true)}
+              onClick={() => setShowRearCamera(true)}
               className="min-h-[52px] px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-950/60 transition-transform active:scale-95"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>AI Photo & Live Chat</span>
+              <Video className="w-4 h-4 fill-current" />
+              <span>Film Patient AI Video</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowCaregiverChat(true)}
+              className="min-h-[52px] px-4 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-700/80 font-bold text-xs rounded-2xl flex items-center gap-2 shadow-md"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <span>AI Photo Chat</span>
             </button>
 
             <a
@@ -54,6 +65,13 @@ export const GuestCaregiverView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Caregiver Rear Camera Patient Video Inspection Modal */}
+      {showRearCamera && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+          <CaregiverRearCameraVideoChat onClose={() => setShowRearCamera(false)} />
+        </div>
+      )}
 
       {/* Caregiver AI Chat Modal Overlay */}
       {showCaregiverChat && (
